@@ -1,8 +1,3 @@
-from pyngrok import ngrok
-
-NGROK_AUTHTOKEN = "38cZ8FIbLUwO5x4cES97tgxPxvq_7uZKUX75QXtma6kczYG8D"
-ngrok.set_auth_token(NGROK_AUTHTOKEN)
-
 from google.colab import files
 import pandas as pd
 
