@@ -336,7 +336,7 @@ def fig_mensal_por_ano(df_base: pd.DataFrame):
     Tendência mensal por ano.
     X = meses (Jan–Dez)
     Y = cirurgias
-    Regra: em 2021, Jan–Abr são inexistentes.
+    Regra: em 2021, Jan–Abr são inexistentes (NaN), então não plota pontos/linha.
     """
     d = _monthly_base(df_base)
 
@@ -346,23 +346,33 @@ def fig_mensal_por_ano(df_base: pd.DataFrame):
          .reset_index(name="Cirurgias")
     )
 
+    anos = sorted(g["Ano"].unique().tolist())
     linhas = []
 
-    for ano in sorted(g["Ano"].unique()):
+    for ano in anos:
         gy = g[g["Ano"] == ano].copy()
 
-        if ano == 2021:
-            # só meses válidos a partir de maio
-            gy = gy[gy["Mes"].isin(MONTH_ORDER[4:])]
+        # garante eixo Jan–Dez para todos
+        gy = (
+            gy.set_index("Mes")
+              .reindex(MONTH_ORDER)  # Jan..Dez
+              .reset_index()
+        )
+        gy["Ano"] = ano
+
+        # preenchimento padrão (anos != 2021): meses faltantes viram 0
+        if ano != 2021:
+            gy["Cirurgias"] = gy["Cirurgias"].fillna(0)
         else:
-            # garante 12 meses para outros anos
-            gy = (
-                gy.set_index("Mes")
-                  .reindex(MONTH_ORDER)
-                  .fillna({"Cirurgias": 0})
-                  .reset_index()
+            # 2021: Jan–Abr devem ser inexistentes (NaN), e Mai–Dez faltantes viram 0
+            meses_inexistentes = ["Jan", "Fev", "Mar", "Abr"]
+
+            # Mai..Dez: se faltar, vira 0
+            gy.loc[~gy["Mes"].isin(meses_inexistentes), "Cirurgias"] = (
+                gy.loc[~gy["Mes"].isin(meses_inexistentes), "Cirurgias"].fillna(0)
             )
-            gy["Ano"] = ano
+            # Jan..Abr: mantém NaN (não plota)
+            # (não faz fillna nesses meses)
 
         linhas.append(gy)
 
@@ -377,7 +387,10 @@ def fig_mensal_por_ano(df_base: pd.DataFrame):
         title="Tendência mensal (por ano)",
     )
 
-    fig.update_traces(text=gg["Cirurgias"], textposition="top center")
+    # rótulo: só mostra onde existe valor (evita "nan" nos meses inexistentes)
+    gg_text = gg["Cirurgias"].apply(lambda v: "" if pd.isna(v) else fmt_int(v))
+    fig.update_traces(text=gg_text, textposition="top center")
+
     fig.update_xaxes(title_text="Mês")
     fig.update_yaxes(title_text="Número de cirurgias")
     return fig
