@@ -34,6 +34,21 @@ FAIXAS_ORDEM = [
     "Não informado",
 ]
 
+# =========================
+# Constantes para tendência mensal
+# =========================
+MONTH_ORDER = ["Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr"]
+
+MONTH_NUM_MAP = {
+    5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago",
+    9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
+    1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
+}
+
+MONTH_INDEX = {m: i for i, m in enumerate(MONTH_ORDER)}
+
+START_MONTHLY = pd.Timestamp("2021-05-01")
+
 # Modebar: manter apenas baixar imagem e tela cheia
 PLOTLY_CONFIG = {
     "displaylogo": False,
@@ -260,6 +275,96 @@ def fig_tendencia_ano(df_base: pd.DataFrame):
     )
     fig.update_traces(text=g["Cirurgias"], textposition="top center")
     return fig, g
+
+def _monthly_base(df_base: pd.DataFrame) -> pd.DataFrame:
+    d = df_base.dropna(subset=[COL_CIRURGIA]).copy()
+    d = d[d[COL_CIRURGIA] >= START_MONTHLY]
+
+    d["Ano"] = d[COL_CIRURGIA].dt.year.astype(int)
+    d["Mes_num"] = d[COL_CIRURGIA].dt.month.astype(int)
+    d["Mes"] = d["Mes_num"].map(MONTH_NUM_MAP)
+    d["Mes_idx"] = d["Mes"].map(MONTH_INDEX)
+
+    d = d.dropna(subset=["Mes_idx"])
+    d["Mes_idx"] = d["Mes_idx"].astype(int)
+    return d
+
+
+def fig_mensal_media_agregado(df_base: pd.DataFrame):
+    d = _monthly_base(df_base)
+
+    g = (
+        d.groupby(["Ano", "Mes_idx"], as_index=False)
+         .size()
+         .rename(columns={"size": "Cirurgias"})
+    )
+
+    m = (
+        g.groupby("Mes_idx", as_index=False)["Cirurgias"]
+         .mean()
+         .rename(columns={"Cirurgias": "Média"})
+    )
+
+    all_months = pd.DataFrame({"Mes_idx": list(range(12))})
+    m = all_months.merge(m, on="Mes_idx", how="left").fillna({"Média": 0})
+    m["Mes"] = m["Mes_idx"].map(lambda i: MONTH_ORDER[i])
+    m["Texto"] = m["Média"].round(1).astype(str).str.replace(".", ",", regex=False)
+
+    fig = px.line(
+        m,
+        x="Média",
+        y="Mes_idx",
+        markers=True,
+        title="Tendência mensal (média do agregado)",
+    )
+    fig.update_traces(text=m["Texto"], textposition="middle right")
+
+    fig.update_yaxes(
+        tickmode="array",
+        tickvals=list(range(12)),
+        ticktext=MONTH_ORDER,
+        title_text="Mês",
+    )
+    fig.update_xaxes(title_text="Média de cirurgias")
+
+    return fig
+
+
+def fig_mensal_por_ano(df_base: pd.DataFrame):
+    d = _monthly_base(df_base)
+
+    g = (
+        d.groupby(["Ano", "Mes_idx"], as_index=False)
+         .size()
+         .rename(columns={"size": "Cirurgias"})
+    )
+
+    anos = sorted(g["Ano"].unique().tolist())
+    grid = pd.MultiIndex.from_product([anos, range(12)], names=["Ano", "Mes_idx"]).to_frame(index=False)
+
+    g = grid.merge(g, on=["Ano", "Mes_idx"], how="left").fillna({"Cirurgias": 0})
+    g["Mes"] = g["Mes_idx"].map(lambda i: MONTH_ORDER[i])
+    g["Texto"] = g["Cirurgias"].apply(fmt_int)
+
+    fig = px.line(
+        g,
+        x="Cirurgias",
+        y="Mes_idx",
+        color="Ano",
+        markers=True,
+        title="Tendência mensal (por ano)",
+    )
+    fig.update_traces(text=g["Texto"], textposition="middle right")
+
+    fig.update_yaxes(
+        tickmode="array",
+        tickvals=list(range(12)),
+        ticktext=MONTH_ORDER,
+        title_text="Mês",
+    )
+    fig.update_xaxes(title_text="Número de cirurgias")
+
+    return fig
 
 def donut_sexo(df: pd.DataFrame):
     g = df.groupby(COL_SEXO).size().reset_index(name="Cirurgias").sort_values("Cirurgias", ascending=False)
@@ -500,6 +605,24 @@ st.markdown("<hr/>", unsafe_allow_html=True)
 st.header("Evolução no tempo")
 fig_trend, _ = fig_tendencia_ano(df_base)  # imutável
 show(fig_trend, height=850)
+
+st.subheader("Tendência mensal")
+
+modo = st.radio(
+    "Visualização",
+    ["Média do agregado", "Tendência por ano"],
+    horizontal=True,
+)
+
+if modo == "Média do agregado":
+    show(fig_mensal_media_agregado(df_base), height=850)
+else:
+    show(fig_mensal_por_ano(df_base), height=900)
+
+st.caption(
+    "Os dados mensais consideram cirurgias a partir de maio de 2021. "
+    "Todos os 12 meses são exibidos, e meses sem registros aparecem com valor zero."
+)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
