@@ -275,7 +275,7 @@ def fig_tendencia_ano(df_base: pd.DataFrame):
     return fig, g
 
 def _monthly_base(df_base: pd.DataFrame) -> pd.DataFrame:
-    """Base mensal a partir de maio/2021 (imutável), com mês como categoria Jan..Dez."""
+    """Base mensal imutável a partir de maio/2021."""
     d = df_base.dropna(subset=[COL_CIRURGIA]).copy()
     d = d[d[COL_CIRURGIA] >= START_MONTHLY]
 
@@ -283,55 +283,60 @@ def _monthly_base(df_base: pd.DataFrame) -> pd.DataFrame:
     d["Mes_num"] = d[COL_CIRURGIA].dt.month.astype(int)
     d["Mes"] = d["Mes_num"].map(MONTH_NUM_MAP)
 
-    # categoria ordenada (Jan..Dez) para eixo Y ficar bonitinho
-    d["Mes"] = pd.Categorical(d["Mes"], categories=MONTH_ORDER, ordered=True)
+    d["Mes"] = pd.Categorical(
+        d["Mes"],
+        categories=MONTH_ORDER,
+        ordered=True
+    )
     return d
 
 
 def fig_mensal_media_agregado(df_base: pd.DataFrame):
     """
-    Uma linha: média por mês do ano (sazonalidade), considerando dados desde maio/2021.
-    Eixo Y: Jan..Dez, Eixo X: média de cirurgias.
+    Média de cirurgias por mês do ano (sazonalidade).
+    X = meses (Jan–Dez)
+    Y = média de cirurgias
     """
     d = _monthly_base(df_base)
 
-    # contagem por ano-mês
     g = (
         d.groupby(["Ano", "Mes"], observed=True)
          .size()
          .reset_index(name="Cirurgias")
     )
 
-    # média por mês do ano
     m = (
         g.groupby("Mes", observed=True)["Cirurgias"]
          .mean()
-         .reindex(MONTH_ORDER)  # garante 12 meses no eixo
+         .reindex(MONTH_ORDER)
          .fillna(0)
          .reset_index(name="Média")
     )
 
-    m["Texto"] = m["Média"].round(1).astype(str).str.replace(".", ",", regex=False)
-
     fig = px.line(
         m,
-        x="Média",
-        y="Mes",
+        x="Mes",
+        y="Média",
         markers=True,
         title="Tendência mensal (média do agregado)",
     )
-    fig.update_traces(text=m["Texto"], textposition="middle right")
-    fig.update_xaxes(title_text="Média de cirurgias")
-    fig.update_yaxes(title_text="Mês")
+
+    fig.update_traces(
+        text=m["Média"].round(1),
+        textposition="top center"
+    )
+
+    fig.update_xaxes(title_text="Mês")
+    fig.update_yaxes(title_text="Média de cirurgias")
     return fig
 
 
 def fig_mensal_por_ano(df_base: pd.DataFrame):
     """
-    Linhas por ano (2021–...): cirurgias por mês do ano.
-    Eixo Y: Jan..Dez, Eixo X: cirurgias.
-
-    Regra especial: em 2021, meses Jan–Abr são "inexistentes" (não plota).
+    Tendência mensal por ano.
+    X = meses (Jan–Dez)
+    Y = cirurgias
+    Regra: em 2021, Jan–Abr são inexistentes.
     """
     d = _monthly_base(df_base)
 
@@ -341,56 +346,40 @@ def fig_mensal_por_ano(df_base: pd.DataFrame):
          .reset_index(name="Cirurgias")
     )
 
-    # Completar meses faltantes com 0 para anos >= 2022 (para 2021 NÃO completamos Jan-Abr)
-    anos = sorted(g["Ano"].unique().tolist())
     linhas = []
 
-    for ano in anos:
+    for ano in sorted(g["Ano"].unique()):
         gy = g[g["Ano"] == ano].copy()
 
         if ano == 2021:
-            # só garante a ordem de Mai..Dez; Jan-Abr não entram (inexistentes)
-            ordem_2021 = ["Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-            gy["Mes_txt"] = gy["Mes"].astype(str)
-            gy = (
-                gy.set_index("Mes_txt")
-                  .reindex(ordem_2021)  # se faltar algum mês após maio, vira NaN e preenche 0
-                  .fillna({"Cirurgias": 0})
-                  .reset_index()
-                  .rename(columns={"index": "Mes"})
-            )
-            gy["Ano"] = 2021
-            gy["Mes"] = pd.Categorical(gy["Mes"], categories=MONTH_ORDER, ordered=True)
-            gy = gy.dropna(subset=["Mes"])  # segurança
+            # só meses válidos a partir de maio
+            gy = gy[gy["Mes"].isin(MONTH_ORDER[4:])]
         else:
-            # anos >= 2022: garante 12 meses
-            gy["Mes_txt"] = gy["Mes"].astype(str)
+            # garante 12 meses para outros anos
             gy = (
-                gy.set_index("Mes_txt")
+                gy.set_index("Mes")
                   .reindex(MONTH_ORDER)
                   .fillna({"Cirurgias": 0})
                   .reset_index()
-                  .rename(columns={"index": "Mes"})
             )
             gy["Ano"] = ano
-            gy["Mes"] = pd.Categorical(gy["Mes"], categories=MONTH_ORDER, ordered=True)
 
-        linhas.append(gy[["Ano", "Mes", "Cirurgias"]])
+        linhas.append(gy)
 
     gg = pd.concat(linhas, ignore_index=True)
-    gg["Texto"] = gg["Cirurgias"].apply(fmt_int)
 
     fig = px.line(
         gg,
-        x="Cirurgias",
-        y="Mes",
+        x="Mes",
+        y="Cirurgias",
         color="Ano",
         markers=True,
         title="Tendência mensal (por ano)",
     )
-    fig.update_traces(text=gg["Texto"], textposition="middle right")
-    fig.update_xaxes(title_text="Número de cirurgias")
-    fig.update_yaxes(title_text="Mês")
+
+    fig.update_traces(text=gg["Cirurgias"], textposition="top center")
+    fig.update_xaxes(title_text="Mês")
+    fig.update_yaxes(title_text="Número de cirurgias")
     return fig
 
 def donut_sexo(df: pd.DataFrame):
