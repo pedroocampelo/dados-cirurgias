@@ -37,15 +37,13 @@ FAIXAS_ORDEM = [
 # =========================
 # Constantes para tendência mensal
 # =========================
-MONTH_ORDER = ["Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr"]
+MONTH_ORDER = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
 
 MONTH_NUM_MAP = {
+    1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
     5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago",
     9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
-    1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
 }
-
-MONTH_INDEX = {m: i for i, m in enumerate(MONTH_ORDER)}
 
 START_MONTHLY = pd.Timestamp("2021-05-01")
 
@@ -277,93 +275,122 @@ def fig_tendencia_ano(df_base: pd.DataFrame):
     return fig, g
 
 def _monthly_base(df_base: pd.DataFrame) -> pd.DataFrame:
+    """Base mensal a partir de maio/2021 (imutável), com mês como categoria Jan..Dez."""
     d = df_base.dropna(subset=[COL_CIRURGIA]).copy()
     d = d[d[COL_CIRURGIA] >= START_MONTHLY]
 
     d["Ano"] = d[COL_CIRURGIA].dt.year.astype(int)
     d["Mes_num"] = d[COL_CIRURGIA].dt.month.astype(int)
     d["Mes"] = d["Mes_num"].map(MONTH_NUM_MAP)
-    d["Mes_idx"] = d["Mes"].map(MONTH_INDEX)
 
-    d = d.dropna(subset=["Mes_idx"])
-    d["Mes_idx"] = d["Mes_idx"].astype(int)
+    # categoria ordenada (Jan..Dez) para eixo Y ficar bonitinho
+    d["Mes"] = pd.Categorical(d["Mes"], categories=MONTH_ORDER, ordered=True)
     return d
 
 
 def fig_mensal_media_agregado(df_base: pd.DataFrame):
+    """
+    Uma linha: média por mês do ano (sazonalidade), considerando dados desde maio/2021.
+    Eixo Y: Jan..Dez, Eixo X: média de cirurgias.
+    """
     d = _monthly_base(df_base)
 
+    # contagem por ano-mês
     g = (
-        d.groupby(["Ano", "Mes_idx"], as_index=False)
+        d.groupby(["Ano", "Mes"], observed=True)
          .size()
-         .rename(columns={"size": "Cirurgias"})
+         .reset_index(name="Cirurgias")
     )
 
+    # média por mês do ano
     m = (
-        g.groupby("Mes_idx", as_index=False)["Cirurgias"]
+        g.groupby("Mes", observed=True)["Cirurgias"]
          .mean()
-         .rename(columns={"Cirurgias": "Média"})
+         .reindex(MONTH_ORDER)  # garante 12 meses no eixo
+         .fillna(0)
+         .reset_index(name="Média")
     )
 
-    all_months = pd.DataFrame({"Mes_idx": list(range(12))})
-    m = all_months.merge(m, on="Mes_idx", how="left").fillna({"Média": 0})
-    m["Mes"] = m["Mes_idx"].map(lambda i: MONTH_ORDER[i])
     m["Texto"] = m["Média"].round(1).astype(str).str.replace(".", ",", regex=False)
 
     fig = px.line(
         m,
         x="Média",
-        y="Mes_idx",
+        y="Mes",
         markers=True,
         title="Tendência mensal (média do agregado)",
     )
     fig.update_traces(text=m["Texto"], textposition="middle right")
-
-    fig.update_yaxes(
-        tickmode="array",
-        tickvals=list(range(12)),
-        ticktext=MONTH_ORDER,
-        title_text="Mês",
-    )
     fig.update_xaxes(title_text="Média de cirurgias")
-
+    fig.update_yaxes(title_text="Mês")
     return fig
 
 
 def fig_mensal_por_ano(df_base: pd.DataFrame):
+    """
+    Linhas por ano (2021–...): cirurgias por mês do ano.
+    Eixo Y: Jan..Dez, Eixo X: cirurgias.
+
+    Regra especial: em 2021, meses Jan–Abr são "inexistentes" (não plota).
+    """
     d = _monthly_base(df_base)
 
     g = (
-        d.groupby(["Ano", "Mes_idx"], as_index=False)
+        d.groupby(["Ano", "Mes"], observed=True)
          .size()
-         .rename(columns={"size": "Cirurgias"})
+         .reset_index(name="Cirurgias")
     )
 
+    # Completar meses faltantes com 0 para anos >= 2022 (para 2021 NÃO completamos Jan-Abr)
     anos = sorted(g["Ano"].unique().tolist())
-    grid = pd.MultiIndex.from_product([anos, range(12)], names=["Ano", "Mes_idx"]).to_frame(index=False)
+    linhas = []
 
-    g = grid.merge(g, on=["Ano", "Mes_idx"], how="left").fillna({"Cirurgias": 0})
-    g["Mes"] = g["Mes_idx"].map(lambda i: MONTH_ORDER[i])
-    g["Texto"] = g["Cirurgias"].apply(fmt_int)
+    for ano in anos:
+        gy = g[g["Ano"] == ano].copy()
+
+        if ano == 2021:
+            # só garante a ordem de Mai..Dez; Jan-Abr não entram (inexistentes)
+            ordem_2021 = ["Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+            gy["Mes_txt"] = gy["Mes"].astype(str)
+            gy = (
+                gy.set_index("Mes_txt")
+                  .reindex(ordem_2021)  # se faltar algum mês após maio, vira NaN e preenche 0
+                  .fillna({"Cirurgias": 0})
+                  .reset_index()
+                  .rename(columns={"index": "Mes"})
+            )
+            gy["Ano"] = 2021
+            gy["Mes"] = pd.Categorical(gy["Mes"], categories=MONTH_ORDER, ordered=True)
+            gy = gy.dropna(subset=["Mes"])  # segurança
+        else:
+            # anos >= 2022: garante 12 meses
+            gy["Mes_txt"] = gy["Mes"].astype(str)
+            gy = (
+                gy.set_index("Mes_txt")
+                  .reindex(MONTH_ORDER)
+                  .fillna({"Cirurgias": 0})
+                  .reset_index()
+                  .rename(columns={"index": "Mes"})
+            )
+            gy["Ano"] = ano
+            gy["Mes"] = pd.Categorical(gy["Mes"], categories=MONTH_ORDER, ordered=True)
+
+        linhas.append(gy[["Ano", "Mes", "Cirurgias"]])
+
+    gg = pd.concat(linhas, ignore_index=True)
+    gg["Texto"] = gg["Cirurgias"].apply(fmt_int)
 
     fig = px.line(
-        g,
+        gg,
         x="Cirurgias",
-        y="Mes_idx",
+        y="Mes",
         color="Ano",
         markers=True,
         title="Tendência mensal (por ano)",
     )
-    fig.update_traces(text=g["Texto"], textposition="middle right")
-
-    fig.update_yaxes(
-        tickmode="array",
-        tickvals=list(range(12)),
-        ticktext=MONTH_ORDER,
-        title_text="Mês",
-    )
+    fig.update_traces(text=gg["Texto"], textposition="middle right")
     fig.update_xaxes(title_text="Número de cirurgias")
-
+    fig.update_yaxes(title_text="Mês")
     return fig
 
 def donut_sexo(df: pd.DataFrame):
@@ -621,7 +648,8 @@ else:
 
 st.caption(
     "Os dados mensais consideram cirurgias a partir de maio de 2021. "
-    "Todos os 12 meses são exibidos, e meses sem registros aparecem com valor zero."
+    "Todos os 12 meses são exibidos, e meses sem registros aparecem com valor zero. "
+    "Em 2021, os meses antes de maio não são exibidos."
 )
 
 st.markdown("<hr/>", unsafe_allow_html=True)
