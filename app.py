@@ -404,6 +404,8 @@ def donut_sexo(df: pd.DataFrame):
     return fig
 
 def barh_faixa(df: pd.DataFrame):
+    # Remove "Não informado" apenas para o gráfico
+    d = df[df["Faixa etária"] != "Não informado"].copy()
     total = len(df)
     g = df.groupby("Faixa etária").size().reindex(FAIXAS_ORDEM, fill_value=0).reset_index()
     g.columns = ["Faixa etária", "Cirurgias"]
@@ -468,9 +470,6 @@ def bar_tecnica_vertical(df: pd.DataFrame):
     return fig
 
 def barh_convenio_top5_outros(df: pd.DataFrame):
-    # Remove "Não informado" apenas para o gráfico
-    d = df[df["Faixa etária"] != "Não informado"].copy()
-
     total = len(df)
     vc = df[COL_CONVENIO].fillna("Não informado").value_counts()
 
