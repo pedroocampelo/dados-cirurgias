@@ -633,7 +633,7 @@ st.markdown("<hr/>", unsafe_allow_html=True)
 
 st.header("Evolução no tempo")
 fig_trend, _ = fig_tendencia_ano(df_base)  # imutável
-show(fig_trend, height=850)
+show(fig_trend, height=700)
 
 st.subheader("Tendência mensal")
 
