@@ -468,6 +468,9 @@ def bar_tecnica_vertical(df: pd.DataFrame):
     return fig
 
 def barh_convenio_top5_outros(df: pd.DataFrame):
+    # Remove "Não informado" apenas para o gráfico
+    d = df[df["Faixa etária"] != "Não informado"].copy()
+
     total = len(df)
     vc = df[COL_CONVENIO].fillna("Não informado").value_counts()
 
