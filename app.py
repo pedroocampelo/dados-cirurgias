@@ -661,7 +661,7 @@ cc1, cc2 = st.columns(2)
 with cc1:
     show(donut_sexo(df), height=650)
 with cc2:
-    show(barh_faixa(df), height=700)
+    show(barh_faixa(df), height=650)
 show(idade_histograma_barras(df, bin_size=5), height=650)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
@@ -672,12 +672,12 @@ show(bar_tecnica_vertical(df), height=650)
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 st.header("Convênios")
-show(barh_convenio_top5_outros(df), height=700)
+show(barh_convenio_top5_outros(df), height=650)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 st.header("Hospitais")
-show(barh_hospital(df), height=700)
+show(barh_hospital(df), height=650)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
