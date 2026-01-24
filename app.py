@@ -226,7 +226,7 @@ def apply_global_style(fig, height=750):
     fig.update_traces(textfont=dict(size=18))
     return fig
 
-def show(fig, height=750):
+def show(fig, height=700):
     fig = apply_global_style(fig, height=height)
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
