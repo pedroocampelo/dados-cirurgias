@@ -31,8 +31,7 @@ FAIXAS_ORDEM = [
     "45 a 54",
     "55 a 64",
     "Acima de 64",
-    "Não informado",
-]
+    ]
 
 # =========================
 # Constantes para tendência mensal
