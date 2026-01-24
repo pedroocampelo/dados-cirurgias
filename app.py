@@ -406,21 +406,30 @@ def donut_sexo(df: pd.DataFrame):
 def barh_faixa(df: pd.DataFrame):
     # Remove "Não informado" apenas para o gráfico
     d = df[df["Faixa etária"] != "Não informado"].copy()
-    total = len(df)
-    g = df.groupby("Faixa etária").size().reindex(FAIXAS_ORDEM, fill_value=0).reset_index()
+
+    total = len(d)
+    g = (
+        d.groupby("Faixa etária")
+         .size()
+         .reindex(FAIXAS_ORDEM, fill_value=0)
+         .reset_index()
+    )
     g.columns = ["Faixa etária", "Cirurgias"]
+
     g["Percentual"] = g["Cirurgias"].apply(lambda x: (x / total * 100) if total else 0)
     g["Texto"] = g.apply(lambda r: f"{fmt_int(r['Cirurgias'])} ({fmt_pct(r['Percentual'])})", axis=1)
 
     fig = px.bar(
-        g, y="Faixa etária", x="Cirurgias",
+        g,
+        y="Faixa etária",
+        x="Cirurgias",
         orientation="h",
         text="Texto",
         title="Distribuição por faixa etária",
         color="Faixa etária",
     )
     fig.update_traces(textposition="outside", cliponaxis=False)
-    fig.update_layout(showlegend=False)
+    fig.update_layout(height=420, margin=dict(l=10, r=10, t=60, b=10), showlegend=False)
     return fig
 
 def idade_histograma_barras(df: pd.DataFrame, bin_size: int = 5):
