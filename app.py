@@ -643,7 +643,7 @@ st.markdown("<hr/>", unsafe_allow_html=True)
 
 st.header("Evolução no tempo")
 fig_trend, _ = fig_tendencia_ano(df_base)  # imutável
-show(fig_trend, height=650)
+show(fig_trend, height=600)
 
 st.subheader("Tendência mensal")
 
@@ -654,9 +654,9 @@ modo = st.radio(
 )
 
 if modo == "Média do agregado":
-    show(fig_mensal_media_agregado(df_base), height=650)
+    show(fig_mensal_media_agregado(df_base), height=600)
 else:
-    show(fig_mensal_por_ano(df_base), height=650)
+    show(fig_mensal_por_ano(df_base), height=600)
 
 st.caption(
     "Os dados mensais consideram cirurgias a partir de maio de 2021. "
@@ -669,25 +669,25 @@ st.markdown("<hr/>", unsafe_allow_html=True)
 st.header("Perfil dos pacientes")
 cc1, cc2 = st.columns(2)
 with cc1:
-    show(donut_sexo(df), height=650)
+    show(donut_sexo(df), height=600)
 with cc2:
-    show(barh_faixa(df), height=650)
-show(idade_histograma_barras(df, bin_size=5), height=650)
+    show(barh_faixa(df), height=600)
+show(idade_histograma_barras(df, bin_size=5), height=600)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 st.header("Distribuição das técnicas cirúrgicas")
-show(bar_tecnica_vertical(df), height=650)
+show(bar_tecnica_vertical(df), height=600)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 st.header("Convênios")
-show(barh_convenio_top5_outros(df), height=650)
+show(barh_convenio_top5_outros(df), height=600)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 st.header("Hospitais")
-show(barh_hospital(df), height=650)
+show(barh_hospital(df), height=600)
 
 st.markdown("<hr/>", unsafe_allow_html=True)
 
